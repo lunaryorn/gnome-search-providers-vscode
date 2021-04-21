@@ -1,0 +1,29 @@
+{
+  "telemetry.machineId": "stop tracking me",
+  "openedPathsList": {
+    "entries": [
+      {
+          "folderUri": "file:///home/foo//mdcat"
+      },
+      {
+          "folderUri": "file:///home/foo//gnome-jetbrains-search-provider"
+      },
+      {
+          "folderUri": "file:///home/foo//gnome-shell"
+      },
+      {
+          "folderUri": "file:///home/foo//sbctl"
+      },
+      {
+          "fileUri": "file:///tmp/foo"
+      }
+    ]
+  },
+  "lastKnownMenubarData": {},
+  "theme": "vs",
+  "themeBackground": "#ffffff",
+  "windowsState": {
+    "lastActiveWindow": {},
+    "openedWindows": []
+  }
+}

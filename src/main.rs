@@ -24,9 +24,19 @@ use zbus::fdo::RequestNameReply;
 use zbus::{dbus_interface, fdo};
 
 #[derive(Debug, Deserialize)]
+struct StorageOpenedPathsListEntries {
+    #[serde(rename = "folderUri")]
+    folder_uri: Option<String>,
+    #[serde(rename = "fileUri")]
+    file_uri: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 struct StorageOpenedPathsList {
     /// Up to code 1.54
     workspaces3: Option<Vec<String>>,
+    /// From code 1.55
+    entries: Option<Vec<StorageOpenedPathsListEntries>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -147,6 +157,24 @@ struct VscodeSearchProvider {
 }
 
 impl VscodeSearchProvider {
+    /// Add a workspace.
+    fn add_workspace(&mut self, url: String) {
+        if let Some(name) = url.split('/').last() {
+            let id = format!(
+                "vscode-search-provider-{}-{}",
+                self.app.get_id().unwrap(),
+                &url
+            );
+            self.recent_workspaces.insert(
+                id,
+                RecentWorkspace {
+                    name: name.to_string(),
+                    url,
+                },
+            );
+        }
+    }
+
     /// Update recent workspaces.
     ///
     /// Clears the map of recent workspaces and reads the recent workspaces from storage again.
@@ -159,24 +187,17 @@ impl VscodeSearchProvider {
         );
         self.recent_workspaces.clear();
         let storage = read_storage_from_dir(&self.config_dir)?;
-        if let Some(workspaces3) = storage
-            .opened_paths_list
-            .and_then(|paths| paths.workspaces3)
-        {
-            for url in workspaces3 {
-                if let Some(name) = url.split('/').last() {
-                    let id = format!(
-                        "vscode-search-provider-{}-{}",
-                        self.app.get_id().unwrap(),
-                        &url
-                    );
-                    self.recent_workspaces.insert(
-                        id,
-                        RecentWorkspace {
-                            name: name.to_string(),
-                            url,
-                        },
-                    );
+        if let Some(opened_paths_list) = storage.opened_paths_list {
+            if let Some(workspaces3) = opened_paths_list.workspaces3 {
+                for url in workspaces3 {
+                    self.add_workspace(url);
+                }
+            }
+            if let Some(entries) = opened_paths_list.entries {
+                for entry in entries {
+                    if let Some(url) = entry.folder_uri {
+                        self.add_workspace(url);
+                    }
                 }
             }
         }
@@ -476,6 +497,46 @@ mod tests {
                 "file:///home/foo//sbctl",
             ]
         )
+    }
+
+    #[test]
+    fn read_recent_workspaces_code_1_55() {
+        let data: &[u8] = include_bytes!("tests/code_1_55_storage.json");
+        let storage = read_storage(data).unwrap();
+        assert!(
+            &storage.opened_paths_list.is_some(),
+            "opened paths list missing"
+        );
+        assert!(
+            &storage
+                .opened_paths_list
+                .as_ref()
+                .unwrap()
+                .entries
+                .is_some(),
+            "entries missing"
+        );
+
+        let mut folder_uris = Vec::new();
+        let mut file_uris = Vec::new();
+        for entry in storage.opened_paths_list.and_then(|p| p.entries).unwrap() {
+            if let Some(url) = entry.folder_uri {
+                folder_uris.push(url);
+            }
+            if let Some(url) = entry.file_uri {
+                file_uris.push(url);
+            }
+        }
+
+        assert_eq!(folder_uris, vec![
+                "file:///home/foo//mdcat",
+                "file:///home/foo//gnome-jetbrains-search-provider",
+                "file:///home/foo//gnome-shell",
+                "file:///home/foo//sbctl",
+            ]
+        );
+
+        assert_eq!(file_uris, vec!["file:///tmp/foo"])
     }
 
     mod search {
