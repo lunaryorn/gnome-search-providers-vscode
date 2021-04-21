@@ -87,6 +87,13 @@ const PROVIDERS: &[ProviderDefinition] = &[ProviderDefinition {
     config: ConfigLocation {
         dirname: "Code - OSS",
     },
+}, ProviderDefinition {
+    label: "Visual Studio Code",
+    desktop_id: "visual-studio-code.desktop",
+    relative_obj_path: "arch/visualstudiocode",
+    config: ConfigLocation {
+        dirname: "Code",
+    },
 }];
 
 /// A recent workspace of a VSCode variant.
