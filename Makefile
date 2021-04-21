@@ -1,22 +1,32 @@
 DESTDIR =
 PREFIX = /usr/local
 
-SEARCH_PROVIDERS_DIR = $(DESTDIR)/$(PREFIX)/share/gnome-shell/search-providers
-LIBDIR = $(DESTDIR)/$(PREFIX)/lib
-DATADIR = $(DESTDIR)/$(PREFIX)/share
+# Avoid double slash prefix
+ifeq ($(DESTDIR),)
+SAFE_PREFIX := $(PREFIX)
+else
+SAFE_PREFIX := $(DESTDIR)/$(PREFIX)
+endif
+
+SEARCH_PROVIDERS_DIR = $(SAFE_PREFIX)/share/gnome-shell/search-providers
+LIBDIR = $(SAFE_PREFIX)/lib
+DATADIR = $(SAFE_PREFIX)/share
 
 SEARCH_PROVIDERS = $(wildcard providers/*.ini)
 
 .PHONY: build
 build:
 	cargo build --release
+	mkdir -p target/dbus-1 target/systemd
+	sed "s:{LIBDIR}:$(LIBDIR):g" "dbus-1/de.swsnr.searchprovider.VSCode.service" > "target/dbus-1/de.swsnr.searchprovider.VSCode.service"
+	sed "s:{LIBDIR}:$(LIBDIR):g" "systemd/de.swsnr.searchprovider.VSCode.service" > "target/systemd/de.swsnr.searchprovider.VSCode.service"
 
 .PHONY: install
 install:
 	install -Dm644 -t $(SEARCH_PROVIDERS_DIR) $(SEARCH_PROVIDERS)
 	install -Dm755 -t $(LIBDIR)/gnome-search-providers-vscode/ target/release/gnome-search-providers-vscode
-	install -Dm644 -t $(LIBDIR)/systemd/user/ systemd/de.swsnr.searchprovider.VSCode.service
-	install -Dm644 -t $(DATADIR)/dbus-1/services dbus-1/de.swsnr.searchprovider.VSCode.service
+	install -Dm644 -t $(LIBDIR)/systemd/user/ target/systemd/de.swsnr.searchprovider.VSCode.service
+	install -Dm644 -t $(DATADIR)/dbus-1/services target/dbus-1/de.swsnr.searchprovider.VSCode.service
 
 .PHONY: uninstall
 uninstall:
