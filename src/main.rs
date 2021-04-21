@@ -80,21 +80,22 @@ impl ProviderDefinition<'_> {
 /// `providers/`; the file must refer to the same `desktop_id` and the same object path.
 /// The object path must be unique for each desktop ID, to ensure that this service always
 /// launches the right application associated with the search provider.
-const PROVIDERS: &[ProviderDefinition] = &[ProviderDefinition {
-    label: "Code OSS (Arch Linux)",
-    desktop_id: "code-oss.desktop",
-    relative_obj_path: "arch/codeoss",
-    config: ConfigLocation {
-        dirname: "Code - OSS",
+const PROVIDERS: &[ProviderDefinition] = &[
+    ProviderDefinition {
+        label: "Code OSS (Arch Linux)",
+        desktop_id: "code-oss.desktop",
+        relative_obj_path: "arch/codeoss",
+        config: ConfigLocation {
+            dirname: "Code - OSS",
+        },
     },
-}, ProviderDefinition {
-    label: "Visual Studio Code",
-    desktop_id: "visual-studio-code.desktop",
-    relative_obj_path: "arch/visualstudiocode",
-    config: ConfigLocation {
-        dirname: "Code",
+    ProviderDefinition {
+        label: "Visual Studio Code",
+        desktop_id: "visual-studio-code.desktop",
+        relative_obj_path: "arch/visualstudiocode",
+        config: ConfigLocation { dirname: "Code" },
     },
-}];
+];
 
 /// A recent workspace of a VSCode variant.
 #[derive(Debug, PartialEq)]
