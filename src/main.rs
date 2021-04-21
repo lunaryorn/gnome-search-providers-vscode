@@ -528,7 +528,9 @@ mod tests {
             }
         }
 
-        assert_eq!(folder_uris, vec![
+        assert_eq!(
+            folder_uris,
+            vec![
                 "file:///home/foo//mdcat",
                 "file:///home/foo//gnome-jetbrains-search-provider",
                 "file:///home/foo//gnome-shell",
