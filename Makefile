@@ -1,16 +1,9 @@
 DESTDIR =
 PREFIX = /usr/local
 
-# Avoid double slash prefix
-ifeq ($(DESTDIR),)
-SAFE_PREFIX := $(PREFIX)
-else
-SAFE_PREFIX := $(DESTDIR)/$(PREFIX)
-endif
-
-SEARCH_PROVIDERS_DIR = $(SAFE_PREFIX)/share/gnome-shell/search-providers
-LIBDIR = $(SAFE_PREFIX)/lib
-DATADIR = $(SAFE_PREFIX)/share
+SEARCH_PROVIDERS_DIR = $(DESTDIR)/$(PREFIX)/share/gnome-shell/search-providers
+LIBDIR = $(DESTDIR)/$(PREFIX)/lib
+DATADIR = $(DESTDIR)/$(PREFIX)/share
 
 SEARCH_PROVIDERS = $(wildcard providers/*.ini)
 
@@ -18,8 +11,8 @@ SEARCH_PROVIDERS = $(wildcard providers/*.ini)
 build:
 	cargo build --release
 	mkdir -p target/dbus-1 target/systemd
-	sed "s:{LIBDIR}:$(LIBDIR):g" "dbus-1/de.swsnr.searchprovider.VSCode.service" > "target/dbus-1/de.swsnr.searchprovider.VSCode.service"
-	sed "s:{LIBDIR}:$(LIBDIR):g" "systemd/de.swsnr.searchprovider.VSCode.service" > "target/systemd/de.swsnr.searchprovider.VSCode.service"
+	sed "s:{PREFIX}:$(PREFIX):g" "dbus-1/de.swsnr.searchprovider.VSCode.service" > "target/dbus-1/de.swsnr.searchprovider.VSCode.service"
+	sed "s:{PREFIX}:$(PREFIX):g" "systemd/de.swsnr.searchprovider.VSCode.service" > "target/systemd/de.swsnr.searchprovider.VSCode.service"
 
 .PHONY: install
 install:
