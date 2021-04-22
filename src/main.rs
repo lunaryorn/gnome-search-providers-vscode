@@ -158,7 +158,7 @@ struct VscodeSearchProvider {
 
 impl VscodeSearchProvider {
     /// Add a workspace.
-    fn add_workspace(&mut self, url: String) {
+    fn add_workspace(&mut self, url: String) -> Result<()> {
         if let Some(name) = url.split('/').last() {
             let id = format!(
                 "vscode-search-provider-{}-{}",
@@ -172,6 +172,9 @@ impl VscodeSearchProvider {
                     url,
                 },
             );
+            Ok(())
+        } else {
+            Err(anyhow!("Failed to extract workspace name from URL {}", url))
         }
     }
 
@@ -190,13 +193,27 @@ impl VscodeSearchProvider {
         if let Some(opened_paths_list) = storage.opened_paths_list {
             if let Some(workspaces3) = opened_paths_list.workspaces3 {
                 for url in workspaces3 {
-                    self.add_workspace(url);
+                    self.add_workspace(url.clone()).map_err(|error| {
+                        error!("Failed to add workspace for URL {}: {}", url.clone(), error);
+                        zbus::fdo::Error::SpawnFailed(format!(
+                            "Failed to add workspace for URL {}: {}",
+                            url.clone(),
+                            error
+                        ))
+                    })?;
                 }
             }
             if let Some(entries) = opened_paths_list.entries {
                 for entry in entries {
                     if let Some(url) = entry.folder_uri {
-                        self.add_workspace(url);
+                        self.add_workspace(url.clone()).map_err(|error| {
+                            error!("Failed to add workspace for URL {}: {}", url.clone(), error);
+                            zbus::fdo::Error::SpawnFailed(format!(
+                                "Failed to add workspace for URL {}: {}",
+                                url.clone(),
+                                error
+                            ))
+                        })?;
                     }
                 }
             }
