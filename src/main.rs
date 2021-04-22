@@ -24,7 +24,7 @@ use zbus::fdo::RequestNameReply;
 use zbus::{dbus_interface, fdo};
 
 #[derive(Debug, Deserialize)]
-struct StorageOpenedPathsListEntries {
+struct StorageOpenedPathsListEntry {
     #[serde(rename = "folderUri")]
     folder_uri: Option<String>,
     #[serde(rename = "fileUri")]
@@ -36,7 +36,7 @@ struct StorageOpenedPathsList {
     /// Up to code 1.54
     workspaces3: Option<Vec<String>>,
     /// From code 1.55
-    entries: Option<Vec<StorageOpenedPathsListEntries>>,
+    entries: Option<Vec<StorageOpenedPathsListEntry>>,
 }
 
 #[derive(Debug, Deserialize)]
