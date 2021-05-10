@@ -6,6 +6,11 @@ and this project doesn't care about versioning.
 
 ## [Unreleased]
 
+### Changed
+- Run with the glib mainloop (see [GH-9]).
+
+[GH-9]: https://github.com/lunaryorn/gnome-search-providers-vscode/issues/9
+
 ## [1.2.0] – 2021-04-26
 
 ### Changed
