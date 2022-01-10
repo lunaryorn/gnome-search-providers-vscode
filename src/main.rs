@@ -8,27 +8,25 @@
 
 //! Gnome search provider for VSCode editors.
 
-use std::convert::TryFrom;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Error, Result};
 use async_trait::async_trait;
-use log::{error, info, trace, warn};
 use serde::Deserialize;
+use tracing::{debug, error, info, instrument, trace, warn, Span};
+use tracing_futures::Instrument;
 
 use gnome_search_provider_common::app::*;
-use gnome_search_provider_common::dbus::*;
 use gnome_search_provider_common::futures_channel;
 use gnome_search_provider_common::gio;
 use gnome_search_provider_common::gio::glib;
 use gnome_search_provider_common::gio::prelude::*;
-use gnome_search_provider_common::log::*;
+use gnome_search_provider_common::logging::*;
 use gnome_search_provider_common::mainloop::*;
 use gnome_search_provider_common::matching::*;
 use gnome_search_provider_common::source::{AsyncItemsSource, IdMap};
 use gnome_search_provider_common::zbus;
-use gnome_search_provider_common::zbus::names::WellKnownName;
 
 #[derive(Debug, Deserialize)]
 struct WorkspaceEntry {
@@ -81,7 +79,8 @@ impl Storage {
     }
 
     /// Read the `storage.json` file in the given `config_dir`.
-    async fn from_dir<P: AsRef<Path>>(config_dir: P) -> Result<Self> {
+    #[instrument]
+    async fn from_dir<P: AsRef<Path> + std::fmt::Debug>(config_dir: P) -> Result<Self> {
         let path = config_dir.as_ref().join("storage.json");
         trace!("Reading storage from {}", path.display());
         let (data, _) = gio::File::for_path(&path)
@@ -197,6 +196,7 @@ fn recent_item(url: String) -> Result<AppLaunchItem> {
     }
 }
 
+#[derive(Debug)]
 struct VscodeWorkspacesSource {
     app_id: AppId,
     /// The configuration directory.
@@ -207,15 +207,19 @@ struct VscodeWorkspacesSource {
 impl AsyncItemsSource<AppLaunchItem> for VscodeWorkspacesSource {
     type Err = Error;
 
+    #[instrument()]
     async fn find_recent_items(&self) -> Result<IdMap<AppLaunchItem>, Self::Err> {
         info!("Finding recent workspaces for {}", self.app_id);
+        let span = Span::current();
         // Move to the main thread and then asynchronously read recent items through Gio,
-        // and get them sent back to us via a oneshot channel.
+        // and get them sent back to us via a oneshot channel.  We can't run the future
+        // right away, because Gio futures aren't Send.
         let (send, recv) = futures_channel::oneshot::channel();
         let dir = self.config_dir.clone();
         glib::MainContext::default().invoke(move || {
-            glib::MainContext::default()
-                .spawn_local(async move { send.send(Storage::from_dir(dir).await).unwrap() });
+            glib::MainContext::default().spawn_local(
+                async move { send.send(Storage::from_dir(dir).await).unwrap() }.instrument(span),
+            );
         });
 
         let urls = recv.await.unwrap()?.into_workspace_urls();
@@ -240,37 +244,15 @@ impl AsyncItemsSource<AppLaunchItem> for VscodeWorkspacesSource {
 /// The name to request on the bus.
 const BUSNAME: &str = "de.swsnr.searchprovider.VSCode";
 
-async fn register_search_providers(
-    connection: &zbus::Connection,
-    launch_service: &AppLaunchService,
-) -> Result<()> {
-    let user_config_dir = glib::user_config_dir();
-    let mut object_server = connection.object_server_mut().await;
-    for provider in PROVIDERS {
-        if let Some(app) = gio::DesktopAppInfo::new(provider.desktop_id) {
-            info!(
-                "Registering provider for {} at {}",
-                provider.desktop_id,
-                provider.objpath()
-            );
-            let dbus_provider = AppItemSearchProvider::new(
-                app.into(),
-                VscodeWorkspacesSource {
-                    app_id: provider.desktop_id.into(),
-                    config_dir: user_config_dir.join(provider.config.dirname),
-                },
-                launch_service.client(),
-            );
-            object_server.at(provider.objpath().as_str(), dbus_provider)?;
-        }
-    }
-    Ok(())
-}
-
 async fn tick(connection: zbus::Connection) {
     loop {
         connection.executor().tick().await
     }
+}
+
+struct Service {
+    app_launch_service: AppLaunchService,
+    connection: zbus::Connection,
 }
 
 /// Starts the DBUS service loop.
@@ -279,37 +261,66 @@ async fn tick(connection: zbus::Connection) {
 /// whose underlying VSCode variant is installed.
 ///
 /// Then register the connection on the Glib main loop and handle incoming messages.
-async fn start_dbus_service() -> Result<()> {
-    let connection = zbus::ConnectionBuilder::session()?
-        // We run on the glib mainloop, and avoid the separate thread
+async fn start_dbus_service(log_control: LogControl) -> Result<Service> {
+    let app_launch_service = AppLaunchService::new();
+    // Create providers for all apps we find
+    let user_config_dir = glib::user_config_dir();
+    info!("Looking for installed apps");
+    let providers = PROVIDERS
+        .iter()
+        .filter_map(|provider| {
+            gio::DesktopAppInfo::new(provider.desktop_id).map(|app| {
+                info!("Found app {}", provider.desktop_id);
+                (
+                    provider.objpath(),
+                    AppItemSearchProvider::new(
+                        app.into(),
+                        VscodeWorkspacesSource {
+                            app_id: provider.desktop_id.into(),
+                            config_dir: user_config_dir.join(provider.config.dirname),
+                        },
+                        app_launch_service.client(),
+                    ),
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+
+    info!(
+        "Registering {} search provider(s) on {}",
+        providers.len(),
+        BUSNAME
+    );
+    let connection = providers
+        .into_iter()
+        .try_fold(
+            zbus::ConnectionBuilder::session()?,
+            |b, (path, provider)| {
+                debug!(
+                    "Registering search provider for app {} at {}",
+                    provider.app().id(),
+                    path
+                );
+                b.serve_at(path, provider)
+            },
+        )?
+        .serve_at("/org/freedesktop/LogControl1", log_control)?
+        .name(BUSNAME)?
+        // We disable the internal executor because we'd like to run the connection
+        // exclusively on the glib mainloop, and thus tick it manually (see below).
         .internal_executor(false)
         .build()
         .await
         .with_context(|| "Failed to connect to session bus")?;
 
+    // Manually tick the connection on the glib mainloop to make all code in zbus run on the mainloop.
     glib::MainContext::ref_thread_default().spawn(tick(connection.clone()));
 
-    info!("Registering all search providers");
-    let launch_service = AppLaunchService::new(
-        &glib::MainContext::ref_thread_default(),
-        connection.clone(),
-        SystemdScopeSettings {
-            prefix: concat!("app-", env!("CARGO_BIN_NAME")).to_string(),
-            started_by: env!("CARGO_BIN_NAME").to_string(),
-            documentation: vec![env!("CARGO_PKG_HOMEPAGE").to_string()],
-        },
-    );
-    register_search_providers(&connection, &launch_service).await?;
-
-    info!("All providers registered, acquiring {}", BUSNAME);
-    // Work around https://gitlab.freedesktop.org/dbus/zbus/-/issues/199,
-    // remove once https://gitlab.freedesktop.org/dbus/zbus/-/merge_requests/414 is merged and released
-    request_name_exclusive(&connection, WellKnownName::try_from(BUSNAME).unwrap())
-        .await
-        .with_context(|| format!("Failed to request {}", BUSNAME))?;
-
     info!("Acquired name {}, serving search providers", BUSNAME);
-    Ok(())
+    Ok(Service {
+        app_launch_service,
+        connection,
+    })
 }
 
 fn app() -> clap::App<'static> {
@@ -343,7 +354,7 @@ fn main() {
             println!("{}", label)
         }
     } else {
-        setup_logging_for_service(env!("CARGO_PKG_VERSION"));
+        let log_control = setup_logging_for_service();
 
         info!(
             "Started {} version: {}",
@@ -355,11 +366,23 @@ fn main() {
         let context = glib::MainContext::default();
         context.push_thread_default();
 
-        if let Err(error) = context.block_on(start_dbus_service()) {
-            error!("Failed to start DBus server: {}", error);
-            std::process::exit(1);
-        } else {
-            create_main_loop(&context).run();
+        match context.block_on(start_dbus_service(log_control)) {
+            Ok(service) => {
+                let _ = service.app_launch_service.start(
+                    &context,
+                    service.connection,
+                    SystemdScopeSettings {
+                        prefix: concat!("app-", env!("CARGO_BIN_NAME")).to_string(),
+                        started_by: env!("CARGO_BIN_NAME").to_string(),
+                        documentation: vec![env!("CARGO_PKG_HOMEPAGE").to_string()],
+                    },
+                );
+                create_main_loop(&context).run();
+            }
+            Err(error) => {
+                error!("Failed to start DBus server: {:#}", error);
+                std::process::exit(1);
+            }
         }
     }
 }

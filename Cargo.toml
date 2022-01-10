@@ -16,10 +16,11 @@ publish = false
 [dependencies]
 anyhow = "^1.0"
 clap = { version = "3.0.5", default-features = false, features = ["std", "cargo"] }
-log = { version = "^0.4", features = ["release_max_level_info"] }
+tracing = "0.1.29"
+tracing-futures = "0.2.5"
 serde = { version = "^1.0", features = ["derive"] }
 serde_json = "^1.0"
-gnome-search-provider-common = { git = "https://github.com/lunaryorn/gnome-search-providers-jetbrains.git", tag = "v1.8.0" }
+gnome-search-provider-common = { version = "1.9.0", git = "https://github.com/lunaryorn/gnome-search-providers-jetbrains.git", tag = "v1.9.0" }
 async-trait = "^0.1"
 
 [dev-dependencies]

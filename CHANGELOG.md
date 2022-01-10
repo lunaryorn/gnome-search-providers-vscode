@@ -8,8 +8,13 @@ and this project doesn't care about versioning.
 
 ### Added
 - Add support for official VSCode packages (see [GH-18]).
+- Add support for systemd log control interface, in order to change log level and log target at runtime with `systemctl service-log-level` and `systemctl service-log-target` respectively (see [GH-19]).
+
+## Changed
+- Use tracing for logging (see [GH-19]).
 
 [GH-18]: https://github.com/lunaryorn/gnome-search-providers-vscode/pull/18
+[GH-19]: https://github.com/lunaryorn/gnome-search-providers-vscode/pull/19
 
 ## [1.6.0] – 2021-11-27
 
