@@ -12,9 +12,11 @@ and this project doesn't care about versioning.
 
 ## Changed
 - Use tracing for logging (see [GH-19]).
+- Change systemd service name to `gnome-search-providers-vscode.service` (see [GH-20]).
 
 [GH-18]: https://github.com/lunaryorn/gnome-search-providers-vscode/pull/18
 [GH-19]: https://github.com/lunaryorn/gnome-search-providers-vscode/pull/19
+[GH-20]: https://github.com/lunaryorn/gnome-search-providers-vscode/pull/20
 
 ## [1.6.0] – 2021-11-27
 
