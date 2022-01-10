@@ -312,29 +312,30 @@ async fn start_dbus_service() -> Result<()> {
     Ok(())
 }
 
-fn main() {
+fn app() -> clap::App<'static> {
     use clap::*;
-
-    let app = app_from_crate!()
-        .setting(AppSettings::UnifiedHelpMessage)
+    app_from_crate!()
         .setting(AppSettings::DontCollapseArgsInUsage)
         .setting(AppSettings::DeriveDisplayOrder)
-        .set_term_width(80)
+        .term_width(80)
         .after_help(
             "\
 Set $RUST_LOG to control the log level",
         )
         .arg(
-            Arg::with_name("providers")
+            Arg::new("providers")
                 .long("--providers")
                 .help("List all providers"),
         )
         .arg(
-            Arg::with_name("journal_log")
+            Arg::new("journal_log")
                 .long("--journal-log")
                 .help("Directly log to the systemd journal instead of stdout"),
-        );
-    let matches = app.get_matches();
+        )
+}
+
+fn main() {
+    let matches = app().get_matches();
     if matches.is_present("providers") {
         let mut labels: Vec<&'static str> = PROVIDERS.iter().map(|p| p.label).collect();
         labels.sort_unstable();
@@ -365,7 +366,13 @@ Set $RUST_LOG to control the log level",
 
 #[cfg(test)]
 mod tests {
+    use super::app;
     use crate::Storage;
+
+    #[test]
+    fn verify_app() {
+        app().debug_assert();
+    }
 
     #[test]
     fn read_recent_workspaces_code_1_54() {
