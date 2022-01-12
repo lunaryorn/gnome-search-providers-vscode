@@ -15,7 +15,7 @@ build:
 	sed "s:{PREFIX}:$(PREFIX):g" "systemd/gnome-search-providers-vscode.service" > "target/systemd/gnome-search-providers-vscode.service"
 
 .PHONY: install
-install: build
+install:
 	install -Dm644 -t $(SEARCH_PROVIDERS_DIR) $(SEARCH_PROVIDERS)
 	install -Dm755 -t $(LIBDIR)/gnome-search-providers-vscode/ target/release/gnome-search-providers-vscode
 	install -Dm644 -t $(LIBDIR)/systemd/user/ target/systemd/gnome-search-providers-vscode.service
