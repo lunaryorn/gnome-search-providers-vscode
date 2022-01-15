@@ -1,3 +1,5 @@
+**Moved to <https://codeberg.org/flausch/gnome-search-providers-vscode>**
+
 # Gnome search provider for VSCode workspaces
 
 Add recent workspaces of various VSCode variants to Gnome search.
